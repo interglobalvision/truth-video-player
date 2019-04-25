@@ -1,6 +1,4 @@
 import React, { Component } from 'react';
-//import isElectron from 'is-electron';
-import logo from './logo.svg';
 import './App.css';
 
 class App extends Component {
@@ -9,30 +7,49 @@ class App extends Component {
     super()
 
     this.state = {
-      activeIndex: 0,
-      activeVideo: null,
-      videos: [],
+      activeVideoIndex: null,
+      videoSrcList: [],
       showControls: true,
-      shuffleOrder: false,
+      shuffleOrder: true,
       videosLoaded: false,
-      videoPlaying: false,
-      loopPlayback: true
+      loopPlayback: true,
+      isPlaying: false,
+      devMode: false
     }
 
-    this.gridSize = 25
-    this.wrapperTransitionDelay = 3 //seconds
-    this.hideControlsDelay = 2000 //ms
+    this.gridSize = 9 // must be a square number (9, 16, 25...)
+
+    /* X position multiplier
+    /  gridSize === 9 ? 33.333333333
+    /  gridSize === 16 ? 25
+    /  gridSize === 25 ? 20
+    */
+    this.xPosMultiplier = 33.333333333
+
+    /* Y position multiplier
+    /  gridSize === 9 ? 11.111111111
+    /  gridSize === 16 ? 6.25
+    /  gridSize === 25 ? 5
+    */
+    this.yPosMultiplier = 11.111111111
+
+    this.wrapperTransitionDelay = 3000 // ms
+    this.hideControlsDelay = 2000 // ms
     this.playOrder = []
 
     this.controlPanelHideTimer = null
+    this.loadFollowingVideoTimer = null
+    this.lastVideoIndexLoaded = 0
 
     this.hideControlsTimeout = this.hideControlsTimeout.bind(this)
     this.handleSelectDirectoryClick = this.handleSelectDirectoryClick.bind(this)
     this.handleDirectorySelected = this.handleDirectorySelected.bind(this)
     this.createVideos = this.createVideos.bind(this)
-    this.handlePlay = this.handlePlay.bind(this)
+    this.playVideo = this.playVideo.bind(this)
+    this.pauseVideo = this.pauseVideo.bind(this)
     this.handleVideoEnd = this.handleVideoEnd.bind(this)
     this.wrapperStyle = this.wrapperStyle.bind(this)
+    this.loadFollowingVideo = this.loadFollowingVideo.bind(this)
   }
 
   componentDidMount() {
@@ -41,21 +58,7 @@ class App extends Component {
 
   componentWillUnmount() {
     clearTimeout(this.controlPanelHideTimer)
-  }
-
-  setPlayOrder() {
-    let playOrder = []
-    let length = this.state.videos.length < this.gridSize ? this.gridSize : this.state.videos.length
-
-    for (let i = 0; i < length; i++) {
-      playOrder.push(i)
-    }
-
-    if (this.state.shuffleOrder) {
-      playOrder.sort(() => Math.random() - 0.5)
-    }
-
-    this.playOrder = playOrder
+    clearTimeout(this.loadFollowingVideoTimer)
   }
 
   // Create video elements in grid
@@ -77,6 +80,10 @@ class App extends Component {
 
   handleSelectDirectoryClick() {
     window.ipcRenderer.send('select-directory')
+
+    if (this.state.isPlaying) {
+      this.pauseVideo()
+    }
   }
 
   hideControlsTimeout() {
@@ -92,31 +99,44 @@ class App extends Component {
   }
 
   handleDirectorySelected(event, videoFiles) {
-    let activeIndex = this.state.activeIndex
-
-    this[`video_${activeIndex}`].pause()
+    if (this.state.shuffleOrder) {
+      videoFiles.sort(() => Math.random() - 0.5)
+    }
 
     this.setState({
-      videos: videoFiles,
-      showControls: false,
-      videoPlaying: false
+      activeVideoIndex: 0,
+      videoSrcList: videoFiles
     })
 
-    this.setPlayOrder()
-    this.loadVideos()
+    this.shufflePlayOrder()
+    this.loadInitialVideos()
   }
 
-  loadVideos() {
+  shufflePlayOrder() {
+    let playOrder = []
+
+    for (let i = 0; i < this.gridSize; i++) {
+      playOrder.push(i)
+    }
+
+    playOrder.sort(() => Math.random() - 0.5)
+
+    this.playOrder = playOrder
+  }
+
+  loadInitialVideos() {
     let videoIndex = 0
 
     for (let gridIndex = 0; gridIndex < this.gridSize; gridIndex++) {
-      this[`video_${gridIndex}`].src = 'file://' + this.state.videos[videoIndex]
+      this[`video_${this.playOrder[gridIndex]}`].src = 'file://' + this.state.videoSrcList[videoIndex]
+
+      this.lastVideoIndexLoaded = videoIndex
 
       videoIndex++
 
-      // If less vidoes than gridSize
-      // and we're at the last video
-      if (this.gridSize > this.state.videos.length && videoIndex >= this.state.videos.length) {
+      if (this.gridSize > this.state.videoSrcList.length && videoIndex >= this.state.videoSrcList.length) {
+        // If less videos than gridSize
+        // and we're at the last video
         videoIndex = 0
       }
     }
@@ -126,47 +146,87 @@ class App extends Component {
     })
   }
 
-  handlePlay() {
-    this.setState({
-      showControls: false,
-      videoPlaying: true
-    })
+  handleVideoEnd() {
+    let prevVideoIndex = this.state.activeVideoIndex
+    let nextVideoIndex = 0
 
-    this.playVideo(this.state.activeIndex)
+    if (prevVideoIndex < (this.state.videoSrcList.length - 1) || this.state.loopPlayback) {
+
+      if (prevVideoIndex < (this.gridSize - 1)) {
+        nextVideoIndex = prevVideoIndex + 1
+      }
+
+      this.setState({
+        activeVideoIndex: nextVideoIndex
+      })
+
+      this.playVideo(nextVideoIndex)
+
+      this.loadFollowingVideoTimer = setTimeout(() => {
+        clearTimeout(this.loadFollowingVideoTimer)
+        this.loadFollowingVideo(prevVideoIndex)
+      }, this.wrapperTransitionDelay)
+
+    } else {
+      this.setState({
+        activeVideoIndex: 0,
+        isPlaying: false
+      })
+    }
   }
 
-  handleVideoEnd() {
-    let activeIndex = 0
+  loadFollowingVideo(prevVideoIndex) {
+    let prevVideoElementIndex = this.playOrder[prevVideoIndex]
+    let indexToLoad = 0
 
-    if (this.state.activeIndex < (this.gridSize - 1) && this.state.activeIndex >= 0) {
-      activeIndex = this.state.activeIndex + 1
+    if (this.lastVideoIndexLoaded < (this.state.videoSrcList.length - 1)) {
+      indexToLoad = this.lastVideoIndexLoaded + 1
     }
 
-    this.setState({
-      activeIndex: activeIndex
-    })
+    this[`video_${prevVideoElementIndex}`].src = 'file://' + this.state.videoSrcList[indexToLoad]
 
-    this.playVideo(activeIndex)
+    this.lastVideoIndexLoaded = indexToLoad
   }
 
-  playVideo(activeIndex) {
-    const index = this.playOrder[activeIndex]
+  playVideo(activeVideoIndex) {
+    let activeVideoElementIndex = 0
+    if (activeVideoIndex !== undefined) {
+      activeVideoElementIndex = this.playOrder[activeVideoIndex]
+    } else {
+      activeVideoElementIndex = this.playOrder[this.state.activeVideoIndex]
+    }
 
-    this[`video_${index}`].play()
+    this[`video_${activeVideoElementIndex}`].play()
+
+    this.setState({
+      isPlaying: true
+    })
+  }
+
+  pauseVideo() {
+    const activeVideoElementIndex = this.playOrder[this.state.activeVideoIndex]
+
+    this[`video_${activeVideoElementIndex}`].pause()
+
+    this.setState({
+      isPlaying: false
+    })
   }
 
   wrapperStyle() {
-    const index = this.playOrder[this.state.activeIndex]
+    const index = this.playOrder[this.state.activeVideoIndex]
     const gridSqrt = Math.sqrt(this.gridSize)
     const zoom = 'scale(' + gridSqrt + ')'
     const closestMultiple = Math.floor(index / gridSqrt) * gridSqrt
-    const posX = (index - closestMultiple) * 20
-    const posY = closestMultiple * 4
+    const posX = (index - closestMultiple) * this.xPosMultiplier
+    const posY = closestMultiple * this.yPosMultiplier
     const posXY = 'translate(-' + posX + '%, -' + posY + '%)'
-
+    const transform = this.state.devMode ? 'none' : zoom + ' ' + posXY
     return {
-      transform: zoom + ' ' + posXY,
-      transition: 'transform ' + this.wrapperTransitionDelay + 's'
+      transform: transform,
+      transition: 'transform ' + this.wrapperTransitionDelay + 'ms',
+      gridTemplateColumns: 'repeat(' + gridSqrt + ', 1fr)',
+      gridTemplateRows: 'repeat(' + gridSqrt + ', 1fr)',
     }
   }
 
@@ -174,24 +234,38 @@ class App extends Component {
     return (
       <div className={this.state.showControls ? 'App show-controls' : 'App'} onMouseMove={this.hideControlsTimeout}>
         <header id="control-panel">
-          <h1>Truth Video Player</h1>
-          <div>
-            <label>Shuffle Order</label>
-            <input type="checkbox" onChange={() => this.setState(prevState => ({
+          <h1>In Search of the Truth</h1>
+          <div className="panel-section">
+            <input id="option-devmode" type="checkbox" onChange={() => this.setState(prevState => ({
+                devMode: !prevState.devMode
+              }))} checked={this.state.devMode}></input>
+            <label htmlFor="option-devmode">Dev Mode</label>
+          </div>
+          <div className="panel-section">
+            <input id="option-shuffle" type="checkbox" onChange={() => this.setState(prevState => ({
                 shuffleOrder: !prevState.shuffleOrder
               }))} checked={this.state.shuffleOrder}></input>
+            <label htmlFor="option-shuffle">Shuffle Order</label>
           </div>
-          <div>
-            <label>Loop Playback</label>
-            <input type="checkbox" onChange={() => this.setState(prevState => ({
+          <div className="panel-section">
+            <input id="option-loop" type="checkbox" onChange={() => this.setState(prevState => ({
                 loopPlayback: !prevState.loopPlayback
               }))} checked={this.state.loopPlayback}></input>
+            <label htmlFor="option-loop">Loop Playback</label>
           </div>
-          <div>
+          <div className="panel-section">
+            <div><span style={{fontSize: '10px'}}>*Shuffle and Loop must be configured before selecting directory</span></div>
+          </div>
+          <div className="panel-section">
             <button onClick={this.handleSelectDirectoryClick}>Select Directory</button>
           </div>
-          <div>
-            <button onClick={this.handlePlay} disabled={!this.state.videosLoaded}>Play</button>
+          <div className="panel-section">
+            <button onClick={() => {
+              if (this.state.isPlaying) {
+                this.pauseVideo()
+              } else {
+                this.playVideo()
+              }}} disabled={!this.state.videosLoaded}>{this.state.isPlaying ? 'Pause' : 'Play'}</button>
           </div>
         </header>
         <div id="wrapper" style={this.wrapperStyle()}>
