@@ -12,13 +12,14 @@
 
 #control-panel {
   position: fixed;
-  top: 5%;
-  left: 5%;
+  top: 20px;
+  left: 20px;
   padding: 20px;
   z-index: 1;
   border: 1px solid grey;
-  background: rgba(255,255,255,.8);
+  background: white;
   opacity: 0;
+  border-radius: 5px;
 }
 
 #wrapper {
@@ -30,8 +31,6 @@
   z-index: 0;
   transition: transform 1s linear;
   display: grid;
-  grid-template-columns: 1fr 1fr 1fr 1fr 1fr;
-  grid-template-rows: 1fr 1fr 1fr 1fr 1fr;
   transform-origin: 0 0;
 }
 
@@ -46,4 +45,72 @@ video {
   width: 100%;
   height: 100%;
   background-color: white;
+}
+
+.panel-section {
+  margin-bottom: 1em;
+}
+
+label, button {
+  font-size: 16px;
+}
+
+label {
+  padding-left: 1em
+}
+
+button {
+  -webkit-appearance: none;
+  appearance: none;
+  background: white;
+  border: 1px solid black;
+  width: 100%;
+  border-radius: 5px;
+  cursor: none;
+}
+
+button:disabled {
+  border-color: grey;
+  cursor: none;
+}
+
+.App.show-controls button {
+  cursor: pointer;
+}
+
+.App.show-controls button:disabled {
+  cursor: default;
+}
+
+input:focus, button:focus, label:focus {
+  outline: none
+}
+
+input[type="checkbox"] {
+  -webkit-appearance: none;
+  appearance: none;
+  height: 1.5em;
+  width: 1.5em;
+  cursor: pointer;
+  position: relative;
+  border: 1px solid black;
+  border-radius: 5px;
+  background-color: white;
+  border-color: black;
+  margin-bottom: -.2em;
+}
+
+input[type="checkbox"]:checked {
+  background-color: black;
+}
+
+input[type="checkbox"]:checked:before {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  text-align: center;
+  color: white;
+  content: '✔';
 }
