@@ -1,10 +1,12 @@
 {
-  "name": "truth-video-player-react",
+  "name": "truth-video-player",
   "version": "0.1.0",
-  "main": "public/Main.js",
+  "author": "Interglobal Vision",
+  "main": "public/electron.js",
+  "homepage": "./",
   "private": true,
   "dependencies": {
-    "electron": "^4.1.4",
+    "electron-is-dev": "^1.1.0",
     "react": "^16.8.6",
     "react-dom": "^16.8.6",
     "react-scripts": "2.1.8"
@@ -12,9 +14,12 @@
   "scripts": {
     "start": "react-scripts start",
     "build": "react-scripts build",
-    "test": "react-scripts test",
+    "test": "react-scripts test --env=jsdom",
     "eject": "react-scripts eject",
-    "electron-start": "electron ."
+    "electron-start": "electron .",
+    "preelectron-pack": "yarn build",
+    "electron-pack": "build -c.extraMetadata.main=build/electron.js",
+    "electron-dev": "concurrently \"BROWSER=none yarn start\" \"wait-on http://localhost:3000 && electron .\""
   },
   "eslintConfig": {
     "extends": "react-app"
@@ -26,6 +31,21 @@
     "not op_mini all"
   ],
   "devDependencies": {
-    "electron-devtools-installer": "^2.2.4"
+    "concurrently": "^4.1.0",
+    "electron": "^4.1.4",
+    "electron-builder": "^20.39.0",
+    "electron-devtools-installer": "^2.2.4",
+    "typescript": "^3.4.5",
+    "wait-on": "^3.2.0"
+  },
+  "build": {
+    "appId": "com.example.electron-cra",
+    "files": [
+      "build/**/*",
+      "node_modules/**/*"
+    ],
+    "directories": {
+      "buildResources": "assets"
+    }
   }
 }
