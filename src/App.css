@@ -47,6 +47,15 @@ video {
   background-color: white;
 }
 
+.control-row {
+  display: flex;
+  flex-wrap: nowrap;
+}
+
+.control-row * {
+  flex: 1;
+}
+
 .panel-section {
   margin-bottom: 1em;
 }
