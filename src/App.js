@@ -50,6 +50,7 @@ class App extends Component {
     this.handleVideoEnd = this.handleVideoEnd.bind(this)
     this.wrapperStyle = this.wrapperStyle.bind(this)
     this.loadFollowingVideo = this.loadFollowingVideo.bind(this)
+    this.skipForward = this.skipForward.bind(this)
   }
 
   componentDidMount() {
@@ -146,11 +147,11 @@ class App extends Component {
     })
   }
 
-  handleVideoEnd() {
+  handleVideoEnd(isSkipForward = false) {
     let prevVideoIndex = this.state.activeVideoIndex
     let nextVideoIndex = 0
 
-    if (prevVideoIndex < (this.state.videoSrcList.length - 1) || this.state.loopPlayback) {
+    if (prevVideoIndex < (this.state.videoSrcList.length - 1) || this.state.loopPlayback || isSkipForward) {
 
       if (prevVideoIndex < (this.gridSize - 1)) {
         nextVideoIndex = prevVideoIndex + 1
@@ -213,6 +214,11 @@ class App extends Component {
     })
   }
 
+  skipForward() {
+    this.pauseVideo()
+    this.handleVideoEnd(true)
+  }
+
   wrapperStyle() {
     const index = this.playOrder[this.state.activeVideoIndex]
     const gridSqrt = Math.sqrt(this.gridSize)
@@ -239,7 +245,7 @@ class App extends Component {
             <input id="option-devmode" type="checkbox" onChange={() => this.setState(prevState => ({
                 devMode: !prevState.devMode
               }))} checked={this.state.devMode}></input>
-            <label htmlFor="option-devmode">Dev Mode</label>
+            <label htmlFor="option-devmode">Grid View</label>
           </div>
           <div className="panel-section">
             <input id="option-shuffle" type="checkbox" onChange={() => this.setState(prevState => ({
@@ -266,6 +272,9 @@ class App extends Component {
               } else {
                 this.playVideo()
               }}} disabled={!this.state.videosLoaded}>{this.state.isPlaying ? 'Pause' : 'Play'}</button>
+          </div>
+          <div className="panel-section">
+            <button onClick={this.skipForward} disabled={!this.state.videosLoaded || !this.state.isPlaying}>Skip</button>
           </div>
         </header>
         <div id="wrapper" style={this.wrapperStyle()}>
